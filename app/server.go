@@ -2,6 +2,7 @@ package main
 
 import (
 	"net/http"
+	"sync"
 
 	"github.com/google/uuid"
 
@@ -10,87 +11,94 @@ import (
 )
 
 type Server struct {
-	TaskList *[]api.GetTask
+	lock  *sync.Mutex
+	tasks *map[string]api.PostTask
 }
 
 func NewServer() *Server {
 	return &Server{
-		TaskList: &[]api.GetTask{},
+		lock:  &sync.Mutex{},
+		tasks: &map[string]api.PostTask{},
 	}
 }
 
-func sendError(ctx echo.Context, code int, message string) error {
-	return ctx.String(code, message)
-}
-
 func (s Server) GetTasks(ctx echo.Context) error {
-	return ctx.JSON(http.StatusOK, s.TaskList)
+	s.lock.Lock()
+	taskList := make([]api.GetTask, 0, len(*s.tasks))
+	for id, postTask := range *s.tasks {
+		getTask := api.GetTask{
+			Description: postTask.Description,
+			Title:       postTask.Title,
+			Uuid:        id,
+		}
+		taskList = append(taskList, getTask)
+	}
+	s.lock.Unlock()
+	return ctx.JSON(http.StatusOK, taskList)
 }
 
 func (s Server) PostTask(ctx echo.Context) error {
 	var postTask api.PostTask
 	err := ctx.Bind(&postTask)
 	if err != nil {
-		return sendError(ctx, http.StatusBadRequest, "Task JSON invalid")
+		return ctx.String(http.StatusBadRequest, "Task JSON invalid")
 	}
 	id := uuid.New().String()
+	s.lock.Lock()
+	(*s.tasks)[id] = postTask
+	s.lock.Unlock()
 	getTask := api.GetTask{
 		Description: postTask.Description,
 		Title:       postTask.Title,
 		Uuid:        id,
 	}
-	*s.TaskList = append(*s.TaskList, getTask)
 	return ctx.JSON(http.StatusCreated, getTask)
 }
 
 func (s Server) DeleteTask(ctx echo.Context, uuid string) error {
-	index := s.getIndexByUuid(uuid)
-	if index == nil {
+	s.lock.Lock()
+	_, exists := (*s.tasks)[uuid]
+	if !exists {
+		s.lock.Unlock()
 		return ctx.String(http.StatusNotFound, "Task not found")
 	}
-	s.removeTaskByIndex(*index)
+	delete(*s.tasks, uuid)
+	s.lock.Unlock()
 	return ctx.String(http.StatusOK, "Task deleted")
+
 }
 
 func (s Server) GetTask(ctx echo.Context, uuid string) error {
-	index := s.getIndexByUuid(uuid)
-	if index == nil {
+	s.lock.Lock()
+	postTask, exists := (*s.tasks)[uuid]
+	if !exists {
+		s.lock.Unlock()
 		return ctx.String(http.StatusNotFound, "Task not found")
 	}
-	return ctx.JSON(http.StatusOK, (*s.TaskList)[*index])
-}
-
-func (s Server) ReplaceTask(ctx echo.Context, uuid string) error {
-	index := s.getIndexByUuid(uuid)
-	if index == nil {
-		return ctx.String(http.StatusNotFound, "Task not found")
-	}
-
-	var postTask api.PostTask
-	err := ctx.Bind(&postTask)
-	if err != nil {
-		return sendError(ctx, http.StatusBadRequest, "Task JSON invalid")
-	}
+	s.lock.Unlock()
 	getTask := api.GetTask{
 		Description: postTask.Description,
 		Title:       postTask.Title,
 		Uuid:        uuid,
 	}
-	(*s.TaskList)[*index] = getTask
-	return ctx.String(http.StatusOK, "Task replaced")
+	return ctx.JSON(http.StatusOK, getTask)
 }
 
-func (s Server) getIndexByUuid(uuid string) *int {
-	for index, task := range *s.TaskList {
-		if task.Uuid == uuid {
-			return &index
-		}
+func (s Server) ReplaceTask(ctx echo.Context, uuid string) error {
+	var postTask api.PostTask
+	err := ctx.Bind(&postTask)
+	if err != nil {
+		return ctx.String(http.StatusBadRequest, "Task JSON invalid")
 	}
-	return nil
-}
 
-func (s Server) removeTaskByIndex(index int) {
-	length := len(*s.TaskList)
-	(*s.TaskList)[index] = (*s.TaskList)[length-1]
-	*s.TaskList = (*s.TaskList)[:length-1]
+	s.lock.Lock()
+	_, exists := (*s.tasks)[uuid]
+	if !exists {
+		s.lock.Unlock()
+		return ctx.String(http.StatusNotFound, "Task not found")
+	}
+	(*s.tasks)[uuid] = postTask
+	s.lock.Unlock()
+
+	return ctx.String(http.StatusOK, "Task replaced")
 }
