@@ -1,0 +1,126 @@
+openapi: 3.0.0
+info:
+  title: Coding Dojo API
+  description: Coding Dojo API
+  version: 0.0.1
+servers:
+  - url: localhost:8008
+    description: Optional server description, e.g. Main (production) server
+
+
+paths:
+  /tasks:
+    get:
+      operationId: getTasks
+      summary: Return all tasks
+      responses:
+        '200':
+          description: List of all tasks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GetTask'
+    post:
+      operationId: postTask
+      summary: Create new task
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PostTask'
+      responses:
+        '201':
+          description: Successfully created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetTask'
+
+  /tasks/{uuid}:
+    get:
+      operationId: getTask
+      summary: Return task with UUID
+      parameters:
+        - in: path
+          name: uuid
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Get Task
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetTask'
+        '404':
+          description: Task not found
+    put:
+      operationId: replaceTask
+      summary: Replace task by UUID
+      parameters:
+        - in: path
+          name: uuid
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PostTask'
+      responses:
+        '200':
+          description: Task replaced
+        '400':
+          description: Task JSON invalid
+        '404':
+          description: Task not found
+    delete:
+      operationId: deleteTask
+      summary: Delete task by UUID
+      parameters:
+        - in: path
+          name: uuid
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Task deleted
+        '404':
+          description: Task not found
+components:
+  schemas:
+    GetTask:
+      type: object
+      properties:
+        title:
+          type: string
+          example: "cleaning kitchen"
+        description:
+          type: string
+          example: "Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam"
+        uuid:
+          type: string
+          example: "4f6b3bf7-21a7-4b43-ba74-e9e442e875a2"
+      required:
+        - title
+        - uuid
+    PostTask:
+      properties:
+          title:
+            type: string
+            example: "cleaning kitchen"
+          description:
+            type: string
+            example: "Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam"
+          uuid:
+            type: string
+            example: "4f6b3bf7-21a7-4b43-ba74-e9e442e875a2"
+      required:
+        - title
