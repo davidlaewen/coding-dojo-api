@@ -1,9 +1,44 @@
 version: "3.5"
 
 services:
-  server:
+  go-echo:
     container_name: go-echo-coding-dojo-server
     build: .
     ports:
       - "8008:8008"
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1'
+        reservations:
+          memory: 1G
+          cpus: '1'
+  postgres:
+    container_name: pg
+    image: "postgres:12"                          # use PG12 as base image
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_HOST_AUTH_METHOD: trust            # allow connections to PG without a password (NEVER do this in production!)
+      PGDATA: /data/postgres
+    volumes:
+      - postgres:/data/postgres                   # make the database persistent
+      - type: bind                                # add a filesystem link
+        source: ~/                                # from host ../
+        target: /home/root/files                  # to docker /home/root/files
+    working_dir: /home/root/files
+    ports:
+      - "5432:5432"                               # expose postgres default port
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1'
+        reservations:
+          memory: 1G
+          cpus: '1'
+
+volumes:
+    postgres:
