@@ -9,6 +9,7 @@ import (
 	"net/http"
 
 	api "doubleslash.de/coding-dojo-api/app/api"
+	"doubleslash.de/coding-dojo-api/app/database"
 	"github.com/labstack/echo/v4"
 	echomiddleware "github.com/labstack/echo/v4/middleware"
 )
@@ -19,14 +20,22 @@ var swaggerUIPage embed.FS
 //go:embed api/coding-dojo-api.yaml
 var openAPISpec embed.FS
 
-func runApi(port int) {
+func runApi(port int, serverImpl string, db *database.Database) {
 	swagger, err := api.GetSwagger()
 	if err != nil {
 		log.Fatalf("Error loading swagger spec\n: %s", err)
 	}
 	swagger.Servers = nil
 
-	server := NewServer()
+	var server api.ServerInterface
+	switch serverImpl {
+	case "mem":
+		server = NewInMemoryServer()
+	case "db":
+		server = NewDatabaseServer(*db)
+	default:
+		server = NewInMemoryServer()
+	}
 
 	e := echo.New()
 	e.Use(echomiddleware.CORSWithConfig(echomiddleware.CORSConfig{
@@ -61,10 +70,41 @@ func runApi(port int) {
 	e.Logger.Fatal(e.Start(fmt.Sprintf("0.0.0.0:%d", port)))
 }
 
+func connectDB(hostname string, user string) (*database.Database, error) {
+	connection, err := database.Connect(hostname, user)
+	if err != nil {
+		return nil, err
+	}
+
+	db := database.Database{DB: connection}
+
+	err = db.InitTables()
+	if err != nil {
+		panic(err)
+	}
+
+	return &db, nil
+}
+
 func main() {
 	var apiPort int
+	var store string
+	var postgresHostname, postgresUser string
 	flag.IntVar(&apiPort, "api-port", 8008, "Port on which REST API will listen")
+	flag.StringVar(&store, "store", "mem", "Server implementation (mem/db)")
+	flag.StringVar(&postgresHostname, "postgres-hostname", "localhost", "Hostname for PostgreSQL")
+	flag.StringVar(&postgresUser, "postgres-user", "postgres", "Username for PostgreSQL")
 	flag.Parse()
 
-	runApi(apiPort)
+	var db *database.Database
+	if store == "db" {
+		var err error
+		db, err = connectDB(postgresHostname, postgresUser)
+		if err != nil {
+			panic(err)
+		}
+		defer db.Close()
+	}
+
+	runApi(apiPort, store, db)
 }

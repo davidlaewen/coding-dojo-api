@@ -10,19 +10,19 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-type Server struct {
+type InMemoryServer struct {
 	lock  *sync.Mutex
 	tasks *map[string]api.PostTask
 }
 
-func NewServer() *Server {
-	return &Server{
+func NewInMemoryServer() *InMemoryServer {
+	return &InMemoryServer{
 		lock:  &sync.Mutex{},
 		tasks: &map[string]api.PostTask{},
 	}
 }
 
-func (s Server) GetTasks(ctx echo.Context) error {
+func (s InMemoryServer) GetTasks(ctx echo.Context) error {
 	s.lock.Lock()
 	taskList := make([]api.GetTask, 0, len(*s.tasks))
 	for id, postTask := range *s.tasks {
@@ -37,7 +37,7 @@ func (s Server) GetTasks(ctx echo.Context) error {
 	return ctx.JSON(http.StatusOK, taskList)
 }
 
-func (s Server) PostTask(ctx echo.Context) error {
+func (s InMemoryServer) PostTask(ctx echo.Context) error {
 	var postTask api.PostTask
 	err := ctx.Bind(&postTask)
 	if err != nil {
@@ -55,7 +55,7 @@ func (s Server) PostTask(ctx echo.Context) error {
 	return ctx.JSON(http.StatusCreated, getTask)
 }
 
-func (s Server) DeleteTask(ctx echo.Context, uuid string) error {
+func (s InMemoryServer) DeleteTask(ctx echo.Context, uuid string) error {
 	s.lock.Lock()
 	_, exists := (*s.tasks)[uuid]
 	if !exists {
@@ -68,7 +68,7 @@ func (s Server) DeleteTask(ctx echo.Context, uuid string) error {
 
 }
 
-func (s Server) GetTask(ctx echo.Context, uuid string) error {
+func (s InMemoryServer) GetTask(ctx echo.Context, uuid string) error {
 	s.lock.Lock()
 	postTask, exists := (*s.tasks)[uuid]
 	if !exists {
@@ -84,7 +84,7 @@ func (s Server) GetTask(ctx echo.Context, uuid string) error {
 	return ctx.JSON(http.StatusOK, getTask)
 }
 
-func (s Server) ReplaceTask(ctx echo.Context, uuid string) error {
+func (s InMemoryServer) ReplaceTask(ctx echo.Context, uuid string) error {
 	var postTask api.PostTask
 	err := ctx.Bind(&postTask)
 	if err != nil {
